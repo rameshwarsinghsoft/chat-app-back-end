@@ -5,7 +5,7 @@ const cors = require('cors');
 const app = require('./app');
 const port = process.env.PORT || 4000;
 const server = http.createServer(app);
-const { Message } = require('./models/index')
+const { Message, User } = require('./models/index');
 app.use(cors());
 
 const io = new Server(server, {
@@ -15,66 +15,74 @@ const io = new Server(server, {
     },
 });
 
-let userSocketMap = {};  // Store mapping of user IDs to socket IDs
 
-// Mock function to simulate getting a user ID from username (replace with real database logic)
-const getUserIdFromUsername = (username) => {
-    // In a real application, you would fetch the user ID from a database
-    // For simplicity, assume the username is the user ID.
-    return username;  // Just returning the username for this example
+let onlineUsers = {};
+const allUsers = () => {
+    // Fetch users once when updating the status
+    User.find()
+        .then(users => {
+            const updatedUsers = users.map(user => {
+                let updatedUser = user._doc ? { ...user._doc } : { ...user };
+                updatedUser.online = !!onlineUsers[updatedUser.email];
+                return updatedUser;
+            });
+
+            // Emit updated users list to all clients
+            io.emit('all_users', updatedUsers);
+        })
+        .catch(err => {
+            console.error('Error fetching users:', err);
+        });
 };
 
 io.on('connection', (socket) => {
-    console.log('User connected: index ' + socket.id);
+    console.log('User connected: ' + socket.id);
 
-    // When a user sets their username (after login, for example), associate their socket ID with their user ID
+    // When a user sets their username, associate their socket ID with their user email
     socket.on('set_username', (username) => {
-        console.log('set_username : ' + username);
-        const userId = getUserIdFromUsername(username);
-
-        // Map the user ID to the socket ID
-        userSocketMap[userId] = socket.id;
-
         console.log(`User ${username} connected with socket ID: ${socket.id}`);
-        console.log("userSocketMap : ", userSocketMap)
+        onlineUsers[username] = socket.id; // Store the email as the key
+
+        // Emit the user list with online status
+        allUsers();
     });
 
-    // Handle message sending
     socket.on('send_message', async (messageData) => {
         const { senderId, receiverEmail } = messageData;
+        const receiverSocketId = onlineUsers[receiverEmail];
 
-        // Get the receiver's socket ID from the map
-        const receiverSocketId = userSocketMap[receiverEmail];
+        // Find sender's email from socket ID
+        const senderEmail = Object.keys(onlineUsers).find(email => onlineUsers[email] === senderId);
 
-        // Find the sender's email using the socket ID
-        const senderEmail = Object.keys(userSocketMap).find(email => userSocketMap[email] === senderId);
-
-        console.log("userSocketMap : ", userSocketMap)
-
-        // Send the message to the receiver if they are connected
         if (receiverSocketId) {
             messageData.receiverSocketId = receiverSocketId;
             messageData.senderEmail = senderEmail;
-            console.log("messageData is : ", messageData)
+             // Emit message to receiver
             io.to(receiverSocketId).emit('receive_message', messageData);
         }
 
-        let data = await Message.create({
-            senderEmail,
-            receiverEmail,
-            message: messageData.message,
-        })
-        console.log("data : ", data)
+        // Save message to database asynchronously
+        try {
+            let data = await Message.create({
+                senderEmail,
+                receiverEmail,
+                message: messageData.message,
+            });
+            console.log("Message saved:", data);
+        } catch (err) {
+            console.error('Error saving message:', err);
+        }
     });
 
-    // Clean up when the user disconnects
     socket.on('disconnect', () => {
-        // Remove the user from the socket map when they disconnect
-        for (let userId in userSocketMap) {
-            if (userSocketMap[userId] === socket.id) {
-                delete userSocketMap[userId];
-                console.log(`User with socket ID: ${socket.id} disconnected`);
-            }
+        // Remove the user from onlineUsers when they disconnect
+        const disconnectedUser = Object.keys(onlineUsers).find(email => onlineUsers[email] === socket.id);
+        if (disconnectedUser) {
+            delete onlineUsers[disconnectedUser];
+            console.log(`User with socket ID: ${socket.id} disconnected`);
+
+            // Emit the user list with online status
+            allUsers();
         }
     });
 });
