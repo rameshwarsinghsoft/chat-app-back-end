@@ -15,7 +15,6 @@ const io = new Server(server, {
     },
 });
 
-
 let onlineUsers = {};
 const allUsers = () => {
     // Fetch users once when updating the status
