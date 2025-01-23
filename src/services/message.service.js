@@ -46,7 +46,7 @@ class MessageService {
             CatchError(error);
         }
     }
-    
+
     async perticularUserAllMessageSeen(senderEmail, receiverEmail) {
         try {
             // Update all messages from the sender to the receiver
@@ -54,14 +54,46 @@ class MessageService {
                 { senderEmail: senderEmail, receiverEmail: receiverEmail, seen: false },
                 { $set: { seen: true } }
             );
-    
+
             return ServiceResponse(true, StatusCodes.OK, "User messages marked as seen.", messagesSeen);
         } catch (error) {
             console.error("Error updating messages:", error);
             CatchError(error);
         }
     }
+
+    async updateMessage(_id, updateMsg) {
+        try {
+            const updateData = { message: updateMsg };
+            const data = await Message.findOneAndUpdate(
+                { _id: _id },    // Filter to find the message by ID
+                updateData,      // The update data
+                { new: true }     // Ensure the returned data is the updated version
+            );
+            if (!data) {
+                return ServiceResponse(false, StatusCodes.NOT_FOUND, "Message not found with the provided message ID.");
+            }
+            return ServiceResponse(true, StatusCodes.OK, "Message updated successfully.", data);
+        } catch (error) {
+            console.error("Error updating message:", error);
+            return CatchError(error);
+        }
+    }
     
+    async deleteMessage(_id) {
+        try {
+            let message = await Message.findOne({ _id: _id });
+            if (!message) {
+                return ServiceResponse(false, StatusCodes.NOT_FOUND, "Message not found with the provided message ID.");
+            }
+            await Message.deleteOne({ _id: _id });
+            return ServiceResponse(true, StatusCodes.OK, "Message deleted successfully.");
+        } catch (error) {
+            console.error("Error deleting message:", error);
+            CatchError(error);
+        }
+    }
+
 }
 
 module.exports = new MessageService();

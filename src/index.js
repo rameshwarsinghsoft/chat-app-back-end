@@ -56,7 +56,7 @@ io.on('connection', (socket) => {
         if (receiverSocketId) {
             messageData.receiverSocketId = receiverSocketId;
             messageData.senderEmail = senderEmail;
-             // Emit message to receiver
+            // Emit message to receiver
             io.to(receiverSocketId).emit('receive_message', messageData);
         }
 
@@ -70,6 +70,20 @@ io.on('connection', (socket) => {
             console.log("Message saved:", data);
         } catch (err) {
             console.error('Error saving message:', err);
+        }
+    });
+
+    socket.on('delete_message', (data) => {
+        const receiverSocketId = onlineUsers[data.receiverEmail];
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit('delete_reflect', "messageData");
+        }
+    });
+
+    socket.on('update_message', (data) => {
+        const receiverSocketId = onlineUsers[data.receiverEmail];
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit('update_reflect', "messageData");
         }
     });
 

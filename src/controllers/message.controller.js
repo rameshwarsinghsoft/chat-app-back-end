@@ -50,6 +50,28 @@ class MessageController {
             return ApiResponse(res, StatusCodes.INTERNAL_SERVER_ERROR, error.toString());
         }
     }
+
+    async updateMessage(req, res) {
+        const _id = req.body._id;
+        const messageContent = req.body.message;
+        try {
+            const message = await MessageService.updateMessage(_id, messageContent);
+            return ApiResponse(res, message.status, message.message, message.success ? message.data : undefined);
+        } catch (error) {
+            return ApiResponse(res, StatusCodes.INTERNAL_SERVER_ERROR, error.toString());
+        }
+    }    
+
+    async deleteMessage(req, res) {
+        const _id = req.params._id;
+        try {
+            const message = await MessageService.deleteMessage(_id);
+            return ApiResponse(res, message.status, message.message, message.success ? message.data : undefined);
+        } catch (error) {
+            return ApiResponse(res, StatusCodes.INTERNAL_SERVER_ERROR, error.toString());
+        }
+    }
+
 }
 
 module.exports = new MessageController();
